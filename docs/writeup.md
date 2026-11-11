@@ -2,7 +2,7 @@
 
 ## Abstract
 
-Developer agents often get a failing test and a shell. We ask how much of their success comes from the ability to run the test suite. We built a small benchmark of 20 single-line bugs. Each bug is a mutation in a pure-Python module of the CPython standard library, and the module's own CPython tests detect it. We ran two open Gemma 4 models, gemma-4-31b-it and gemma-4-26b-a4b-it, with the mini-swe-agent scaffold in Docker. Each model solved every task under two conditions: with the official tests available, and with only a one-line bug report. The larger model resolved 13 of 20 tasks without tests and 12 of 20 with tests. The smaller model resolved 12 of 20 without tests and 8 of 20 with tests. Test access did not raise the resolve rate for either model under a 12-step limit. We release the task generator, the runner, all trajectories, and the per-run results.
+Developer agents often get a failing test and a shell. We ask how much of their success comes from the ability to run the test suite. We built a small benchmark of 20 single-line bugs. Each bug is a mutation in a pure-Python module of the CPython standard library, and the module's own CPython tests detect it. We ran two open Gemma 4 models, gemma-4-31b-it and gemma-4-26b-a4b-it, with the mini-swe-agent scaffold in Docker. Each model solved every task under two conditions: with the official tests available, and with only a one-line bug report. The larger model resolved 14 of 20 tasks in both conditions. The smaller model resolved 12 of 20 without tests and 10 of 20 with tests. Test access did not raise the resolve rate for either model under a 12-step limit. We release the task generator, the runner, all trajectories, and the per-run results.
 
 ## 1. Introduction
 
@@ -63,18 +63,18 @@ The free tier allows 16,000 input tokens per minute per model. We ran one task a
 
 Table 1 shows the results for all 80 runs. A task counts as resolved only if the hidden CPython tests pass.
 
-| Model | Condition | Resolved | Exact line repair | Same AST as original | Agent submitted | Step limit | Stopped by API rate limit | Mean steps |
+| Model | Condition | Resolved | Exact line repair | Same AST as original | Agent submitted | Step limit | Stopped (rate limit or time limit) | Mean steps |
 |---|---|---|---|---|---|---|---|---|
-| gemma-4-31b-it | blind | 13/20 | 6 | 4 | 9 | 8 | 3 | 10.2 |
-| gemma-4-31b-it | tests | 12/20 | 7 | 4 | 4 | 9 | 7 | 10.4 |
+| gemma-4-31b-it | blind | 14/20 | 7 | 4 | 9 | 9 | 2 | 10.5 |
+| gemma-4-31b-it | tests | 14/20 | 9 | 6 | 4 | 14 | 2 | 11.3 |
 | gemma-4-26b-a4b-it | blind | 12/20 | 7 | 5 | 1 | 16 | 2 | 11.6 |
-| gemma-4-26b-a4b-it | tests | 8/20 | 3 | 4 | 0 | 15 | 5 | 11.3 |
+| gemma-4-26b-a4b-it | tests | 10/20 | 5 | 4 | 0 | 18 | 2 | 11.8 |
 
-The free tier stopped 24 runs with a rate-limit error. We ran these 24 runs again with one process for each model. Seven runs then completed. The remaining 17 runs stay in the table as "stopped by API rate limit". The hidden tests still grade the file that the agent left, so some of these runs are resolved.
+The free tier stopped 24 runs with a rate-limit error. We ran these 24 runs again with one process for each model, and seven runs completed. Then we ran the remaining 17 runs again one at a time, with a time limit of 25 minutes for each run. Nine more runs completed. Eight runs stay in the table as "stopped". Three of these eight runs are on heapq-161-18-const, which hit the time limit each time. The hidden tests still grade the file that the agent left. One stopped run is resolved.
 
-Paired comparison. We compare the two conditions only on tasks where neither run stopped on the rate limit. For gemma-4-31b-it there are 12 such tasks: 10 resolved in blind and 9 in tests. For gemma-4-26b-a4b-it there are 14 such tasks: 9 resolved in blind and 7 in tests. With test access, one extra task was resolved for each model. Without test access, two extra tasks were resolved for the 31B model and three for the 26B model.
+Paired comparison. We compare the two conditions only on tasks where neither run stopped. For gemma-4-31b-it there are 17 such tasks: 14 resolved in blind and 13 in tests. For gemma-4-26b-a4b-it there are 17 such tasks: 11 resolved in blind and 10 in tests. With test access, one extra task was resolved for the 31B model and two for the 26B model. Without test access, two extra tasks were resolved for the 31B model and three for the 26B model.
 
-By module, over all four configurations, colorsys was the easiest (11 of 12 runs resolved) and textwrap the hardest (3 of 12).
+By module, over all four configurations, bisect and colorsys were the easiest (11 of 12 runs resolved each). heapq and textwrap were the hardest (4 of 12 each).
 
 ## 6. Discussion
 
@@ -94,10 +94,11 @@ These results do not show that test feedback is useless. They show that, for sma
 - The standard library is in the training data of most models. A model can recall the original line. The blind condition measures this recall together with code reading.
 - One attempt per run at temperature 0. We did not measure variance.
 - The free API tier limits throughput, so the benchmark has 20 tasks.
+- Eight of 80 runs did not complete, because of the rate limit or the time limit. These runs count as unresolved unless the hidden tests pass on the file that the agent left.
 
 ## 8. Reproducibility
 
-The repository contains the generator (`bench/make_tasks.py`), the runner (`bench/run.py`), the task list, the copied CPython test files, every trajectory (`runs/*/*.traj.json`), and one JSON line per run (`runs/*/results.jsonl`).
+The repository contains the generator (`bench/make_tasks.py`), the runner (`bench/run.py`), the task list, the copied CPython test files, every trajectory (`runs/*/*.traj.json`), and one JSON line per run (`runs/*/results.jsonl`). `bench/stats.py` makes Table 1 and the paired comparison from these files.
 
 ## References
 
